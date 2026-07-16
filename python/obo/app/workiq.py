@@ -64,9 +64,11 @@ def _parse_citations(message: dict[str, Any]) -> tuple[Citation, ...]:
     )
 
 
-def _last_text_message(payload: dict[str, Any]) -> dict[str, Any] | None:
+def _last_text_message(payload: Any) -> dict[str, Any] | None:
     """The assistant's reply is the last message carrying a `text` field."""
-    candidates = [m for m in payload.get("messages", []) if "text" in m]
+    if not isinstance(payload, dict):
+        return None
+    candidates = [m for m in payload.get("messages", []) if isinstance(m, dict) and "text" in m]
     return candidates[-1] if candidates else None
 
 
@@ -100,7 +102,8 @@ class WorkIQClient:
         self._raise_for_status(response, "create conversation")
 
         try:
-            conversation_id = response.json().get("id")
+            body = response.json()
+            conversation_id = body.get("id") if isinstance(body, dict) else None
         except (ValueError, httpx.DecodingError) as exc:
             raise WorkIQError("create conversation: invalid JSON response") from exc
         if not isinstance(conversation_id, str) or not conversation_id:
