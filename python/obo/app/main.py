@@ -165,7 +165,7 @@ async def chat_stream(
                 conversation_id = (
                     request.conversation_id or await client.create_conversation()
                 )
-                yield f"event: conversation\ndata: {conversation_id}\n\n"
+                yield f"event: conversation\ndata: {json.dumps({'conversation_id': conversation_id})}\n\n"
 
                 # JSON-encode each delta: raw newlines in the text would
                 # otherwise terminate the SSE frame early.
