@@ -66,7 +66,7 @@ def _parse_citations(message: dict[str, Any]) -> tuple[Citation, ...]:
             provider_display_name=a.get("providerDisplayName", ""),
             see_more_web_url=a.get("seeMoreWebUrl", ""),
         )
-        for a in message.get("attributions", [])
+        for a in (message.get("attributions") or [])
     )
 
 
@@ -144,7 +144,7 @@ class WorkIQClient:
         if reply is None:
             raise WorkIQError("no assistant message in response")
 
-        return ChatReply(text=reply["text"], citations=_parse_citations(reply))
+        return ChatReply(text=reply.get("text", ""), citations=_parse_citations(reply))
 
     async def chat_stream(
         self, conversation_id: str, message: str, *, time_zone: str | None = None
