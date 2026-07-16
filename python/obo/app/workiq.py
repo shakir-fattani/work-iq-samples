@@ -93,7 +93,7 @@ class WorkIQClient:
         await self._client.aclose()
 
     async def create_conversation(self) -> str:
-        response = await self._client.post("/conversations", json={})
+        response = await self._client.post("conversations", json={})
         self._raise_for_status(response, "create conversation")
 
         conversation_id = response.json().get("id")
@@ -103,7 +103,7 @@ class WorkIQClient:
 
     async def chat(self, conversation_id: str, message: str) -> ChatReply:
         response = await self._client.post(
-            f"/conversations/{conversation_id}/chat", json=_chat_body(message)
+            f"conversations/{conversation_id}/chat", json=_chat_body(message)
         )
         self._raise_for_status(response, "chat")
 

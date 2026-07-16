@@ -1,6 +1,7 @@
 """Configuration for the Work IQ OBO backend, loaded from the environment.
 
-Missing required values fail at import time rather than on the first request.
+Missing required values fail at startup (when ``get_settings()`` is first called)
+rather than on the first request.
 """
 
 from __future__ import annotations
@@ -53,7 +54,7 @@ class Settings:
 
     @property
     def workiq_base(self) -> str:
-        return f"{self.workiq_host.rstrip('/')}{WORKIQ_PATH}"
+        return f"{self.workiq_host.rstrip('/')}{WORKIQ_PATH}/"
 
     @property
     def uses_managed_identity(self) -> bool:
@@ -75,7 +76,7 @@ def get_settings() -> Settings:
         tenant_id=_require("AZURE_TENANT_ID"),
         client_id=_require("AZURE_CLIENT_ID"),
         api_audience=_require("API_AUDIENCE"),
-        required_scope=os.environ.get("REQUIRED_SCOPE", DEFAULT_REQUIRED_SCOPE),
-        workiq_host=os.environ.get("WORKIQ_HOST", WORKIQ_DEFAULT_HOST),
+        required_scope=os.environ.get("REQUIRED_SCOPE", DEFAULT_REQUIRED_SCOPE).strip(),
+        workiq_host=os.environ.get("WORKIQ_HOST", WORKIQ_DEFAULT_HOST).strip(),
         client_secret=secret or None,
     )

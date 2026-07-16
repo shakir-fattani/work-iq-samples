@@ -20,7 +20,7 @@ from fastapi.testclient import TestClient
 
 from app.workiq import WorkIQClient, WorkIQError, _last_text_message
 
-BASE = "https://workiq.test/rest/beta"
+BASE = "https://workiq.test/rest/beta/"
 
 
 def handler(request: httpx.Request) -> httpx.Response:

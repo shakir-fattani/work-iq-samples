@@ -21,7 +21,7 @@ from .workiq import WorkIQClient, WorkIQError
 
 logger = logging.getLogger(__name__)
 
-BEARER_PREFIX = "Bearer "
+BEARER_SCHEME = "bearer"
 
 
 class ChatRequest(BaseModel):
@@ -63,13 +63,13 @@ app = FastAPI(title="Work IQ OBO Backend", lifespan=lifespan)
 
 
 def _bearer_token(authorization: Annotated[str | None, Header()] = None) -> str:
-    if not authorization or not authorization.startswith(BEARER_PREFIX):
+    if not authorization or not authorization.lower().startswith(BEARER_SCHEME):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing bearer token",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    return authorization[len(BEARER_PREFIX) :].strip()
+    return authorization[len(BEARER_SCHEME) :].strip()
 
 
 async def workiq_token(
