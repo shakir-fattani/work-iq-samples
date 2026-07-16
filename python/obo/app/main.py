@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 from typing import Annotated, AsyncIterator
 
 from azure.core.exceptions import ClientAuthenticationError, HttpResponseError
-from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -86,11 +86,12 @@ def _bearer_token(authorization: Annotated[str | None, Header()] = None) -> str:
 
 
 async def workiq_token(
+    request: Request,
     inbound_token: Annotated[str, Depends(_bearer_token)],
 ) -> str:
     """Validate the caller's token and exchange it for a Work IQ token."""
-    validator: TokenValidator = app.state.validator
-    exchange: WorkIQTokenExchange = app.state.exchange
+    validator: TokenValidator = request.app.state.validator
+    exchange: WorkIQTokenExchange = request.app.state.exchange
 
     try:
         claims = await validator.validate(inbound_token)
