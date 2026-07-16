@@ -101,7 +101,7 @@ class WorkIQClient:
 
         try:
             conversation_id = response.json().get("id")
-        except ValueError as exc:
+        except (ValueError, httpx.DecodingError) as exc:
             raise WorkIQError("create conversation: invalid JSON response") from exc
         if not conversation_id:
             raise WorkIQError("no conversation id in response")
@@ -118,7 +118,7 @@ class WorkIQClient:
 
         try:
             payload = response.json()
-        except ValueError as exc:
+        except (ValueError, httpx.DecodingError) as exc:
             raise WorkIQError("chat: invalid JSON response") from exc
 
         reply = _last_text_message(payload)

@@ -18,7 +18,11 @@ sys.path.insert(0, str(Path(__file__).parent))
 import httpx
 from fastapi.testclient import TestClient
 
+from app.config import get_settings
 from app.workiq import WorkIQClient, WorkIQError, _last_text_message
+
+# Ensure env vars set above are picked up, even if config was imported earlier.
+get_settings.cache_clear()
 
 BASE = "https://workiq.test/rest/beta/"
 

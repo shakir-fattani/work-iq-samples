@@ -11,6 +11,7 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Annotated, AsyncIterator
 
+from azure.core.exceptions import ClientAuthenticationError, HttpResponseError
 from fastapi import Depends, FastAPI, Header, HTTPException, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
@@ -26,7 +27,9 @@ BEARER_SCHEME = "bearer"
 
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=8000)
-    conversation_id: str | None = None
+    conversation_id: str | None = Field(
+        default=None, pattern=r"^[a-zA-Z0-9\-_]+$", max_length=128
+    )
 
 
 class CitationModel(BaseModel):
@@ -98,9 +101,8 @@ async def workiq_token(
 
     try:
         return await exchange.token_for(inbound_token)
-    except Exception as exc:
-        # A failure here is usually consent, licensing, or a misconfigured app
-        # registration — log it with the user for triage, but do not leak it.
+    except (ClientAuthenticationError, HttpResponseError) as exc:
+        # Consent, licensing, or misconfigured app registration — log for triage.
         logger.error("OBO exchange failed for %s: %s", claims.get("oid"), exc)
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
