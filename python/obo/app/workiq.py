@@ -167,5 +167,5 @@ class WorkIQClient:
         request_id = response.headers.get("request-id", "unknown")
         raise WorkIQError(
             f"{action} failed: {response.status_code} "
-            f"(request-id={request_id}) {response.text[:500]}"
+            f"(request-id={request_id})"
         )

@@ -76,7 +76,7 @@ def get_settings() -> Settings:
         tenant_id=_require("AZURE_TENANT_ID"),
         client_id=_require("AZURE_CLIENT_ID"),
         api_audience=_require("API_AUDIENCE"),
-        required_scope=os.environ.get("REQUIRED_SCOPE", DEFAULT_REQUIRED_SCOPE).strip(),
-        workiq_host=os.environ.get("WORKIQ_HOST", WORKIQ_DEFAULT_HOST).strip(),
+        required_scope=os.environ.get("REQUIRED_SCOPE", "").strip() or DEFAULT_REQUIRED_SCOPE,
+        workiq_host=os.environ.get("WORKIQ_HOST", "").strip() or WORKIQ_DEFAULT_HOST,
         client_secret=secret or None,
     )

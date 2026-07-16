@@ -63,13 +63,20 @@ app = FastAPI(title="Work IQ OBO Backend", lifespan=lifespan)
 
 
 def _bearer_token(authorization: Annotated[str | None, Header()] = None) -> str:
-    if not authorization or not authorization.lower().startswith(BEARER_SCHEME):
+    if not authorization:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing bearer token",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    return authorization[len(BEARER_SCHEME) :].strip()
+    parts = authorization.split(None, 1)
+    if len(parts) != 2 or parts[0].lower() != BEARER_SCHEME:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing bearer token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return parts[1]
 
 
 async def workiq_token(
