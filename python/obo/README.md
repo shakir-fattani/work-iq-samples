@@ -190,6 +190,7 @@ No MSAL wrapper needed — `azure-identity` builds on MSAL underneath.
 | `403 Unable to obtain Work IQ access` | The OBO exchange failed. Usually missing admin consent on `WorkIQAgent.Ask`, or the user lacks a Copilot license. |
 | `401` from the Gateway | The *outbound* token's `aud` is wrong — must be `api://workiq.svc.cloud.microsoft`, not your API. |
 | `AADSTS50013: Assertion failed signature validation` | The federated credential subject/issuer doesn't match your managed identity. |
+| `502 Work IQ request failed` | The Gateway call failed — network error, timeout, or the Gateway returned a server error. Check connectivity and the `request-id` in logs. |
 | Slow first response per turn | Every request does a fresh OBO round trip. See [Notes before production](#notes-before-production). |
 
 See the [root README](../../README.md#troubleshooting) for the full matrix (Copilot license, consent, audience mismatch).
