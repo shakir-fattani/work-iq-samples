@@ -30,6 +30,9 @@ class ChatRequest(BaseModel):
     conversation_id: str | None = Field(
         default=None, pattern=r"^[a-zA-Z0-9\-_]+$", max_length=128
     )
+    time_zone: str | None = Field(
+        default=None, pattern=r"^[A-Za-z_]+/[A-Za-z_/]+$", max_length=64
+    )
 
 
 class CitationModel(BaseModel):
@@ -124,7 +127,9 @@ async def chat(
     try:
         async with _client(token, settings) as client:
             conversation_id = request.conversation_id or await client.create_conversation()
-            reply = await client.chat(conversation_id, request.message)
+            reply = await client.chat(
+                conversation_id, request.message, time_zone=request.time_zone
+            )
     except WorkIQError as exc:
         logger.error("work iq call failed: %s", exc)
         raise HTTPException(
@@ -163,7 +168,9 @@ async def chat_stream(
 
                 # JSON-encode each delta: raw newlines in the text would
                 # otherwise terminate the SSE frame early.
-                async for delta in client.chat_stream(conversation_id, request.message):
+                async for delta in client.chat_stream(
+                    conversation_id, request.message, time_zone=request.time_zone
+                ):
                     yield f"data: {json.dumps({'text': delta})}\n\n"
         except WorkIQError as exc:
             # The response has already started, so the error rides the stream.

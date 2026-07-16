@@ -45,10 +45,10 @@ def _local_timezone() -> str:
     return name if "/" in name or name == "UTC" else "UTC"
 
 
-def _chat_body(message: str) -> dict[str, Any]:
+def _chat_body(message: str, time_zone: str | None = None) -> dict[str, Any]:
     return {
         "message": {"text": message},
-        "locationHint": {"timeZone": _local_timezone()},
+        "locationHint": {"timeZone": time_zone or _local_timezone()},
     }
 
 
@@ -103,14 +103,17 @@ class WorkIQClient:
             conversation_id = response.json().get("id")
         except (ValueError, httpx.DecodingError) as exc:
             raise WorkIQError("create conversation: invalid JSON response") from exc
-        if not conversation_id:
+        if not isinstance(conversation_id, str) or not conversation_id:
             raise WorkIQError("no conversation id in response")
         return conversation_id
 
-    async def chat(self, conversation_id: str, message: str) -> ChatReply:
+    async def chat(
+        self, conversation_id: str, message: str, *, time_zone: str | None = None
+    ) -> ChatReply:
         try:
             response = await self._client.post(
-                f"conversations/{conversation_id}/chat", json=_chat_body(message)
+                f"conversations/{conversation_id}/chat",
+                json=_chat_body(message, time_zone),
             )
         except httpx.HTTPError as exc:
             raise WorkIQError(f"chat failed: {exc}") from exc
@@ -128,7 +131,7 @@ class WorkIQClient:
         return ChatReply(text=reply["text"], citations=_parse_citations(reply))
 
     async def chat_stream(
-        self, conversation_id: str, message: str
+        self, conversation_id: str, message: str, *, time_zone: str | None = None
     ) -> AsyncIterator[str]:
         """Yield text deltas as they arrive.
 
@@ -139,7 +142,7 @@ class WorkIQClient:
         request = self._client.build_request(
             "POST",
             f"conversations/{conversation_id}/chatOverStream",
-            json=_chat_body(message),
+            json=_chat_body(message, time_zone),
         )
         response = None
         try:
