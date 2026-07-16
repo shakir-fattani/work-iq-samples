@@ -67,6 +67,7 @@ def _parse_citations(message: dict[str, Any]) -> tuple[Citation, ...]:
             see_more_web_url=a.get("seeMoreWebUrl", ""),
         )
         for a in (message.get("attributions") or [])
+        if isinstance(a, dict)
     )
 
 

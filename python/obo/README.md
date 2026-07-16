@@ -100,7 +100,7 @@ uvicorn app.main:app --reload
 curl -X POST localhost:8000/api/chat \
   -H "Authorization: Bearer <token your frontend got for api://<BACKEND_APP_ID>/access_as_user>" \
   -H "Content-Type: application/json" \
-  -d '{"message": "What meetings do I have tomorrow?"}'
+  -d '{"message": "What meetings do I have tomorrow?", "time_zone": "America/New_York"}'
 ```
 
 ```json
