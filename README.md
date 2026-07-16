@@ -7,8 +7,11 @@ Sample clients for the [Work IQ](https://learn.microsoft.com/en-us/microsoft-365
 | [**dotnet/a2a/**](dotnet/a2a/) | C# | Windows, macOS, Linux | [A2A](https://a2a-protocol.org) | Interactive agent session using the A2A protocol over JSON-RPC |
 | [**dotnet/a2a-raw/**](dotnet/a2a-raw/) | C# | Windows, macOS, Linux | [A2A](https://a2a-protocol.org) | Same, but with raw `HttpClient` + JSON (no A2A SDK) |
 | [**dotnet/rest/**](dotnet/rest/) | C# | Windows, macOS, Linux | REST | Interactive chat using the [Copilot Chat API](https://learn.microsoft.com/en-us/microsoft-365-copilot/extensibility/api/ai-services/chat/overview) |
+| [**python/obo/**](python/obo/) | Python | Windows, macOS, Linux | REST | Backend service brokering Work IQ for a frontend via the [On-Behalf-Of flow](https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-on-behalf-of-flow) |
 | [**rust/a2a/**](rust/a2a/) | Rust | Windows, macOS, Linux | [A2A](https://a2a-protocol.org) | Interactive agent session with MSAL auth and token caching |
 | [**swift/a2a/**](swift/a2a/) | Swift | iOS/iPadOS (macOS to build) | [A2A](https://a2a-protocol.org) | SwiftUI chat app for Work IQ |
+
+Every sample is a **public client** that signs a user in directly, except [**python/obo/**](python/obo/) — that one is a **middle tier**: the user signs in to your frontend, and the service exchanges their token for a Work IQ token. It needs a different app registration; see its [README](python/obo/README.md#app-registration).
 
 ---
 
@@ -24,6 +27,7 @@ All samples target the **Work IQ Gateway** (`workiq.svc.cloud.microsoft`) — th
 2. **Entra app registration** configured in your tenant — this is a one-time setup per tenant. Details below.
 3. **Your language toolchain**:
    - **dotnet/** samples: [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) or later
+   - **python/** samples: [Python 3.10+](https://www.python.org/downloads/)
    - **rust/** samples: [Rust toolchain](https://rustup.rs/) (stable)
    - **swift/** samples: [Xcode 26+](https://developer.apple.com/xcode/) (macOS only)
 
@@ -45,6 +49,8 @@ You (or your tenant admin) must create an Entra app registration with specific p
 - **If you're not the admin** — hand [`ADMIN_SETUP.md`](ADMIN_SETUP.md) to them. They'll give you back an **App ID** and **Tenant ID**.
 
 After setup you'll have two values: `APP_ID` and `TENANT_ID`. Pass them to any sample via `--appid` and `--tenant`.
+
+> **[`python/obo/`](python/obo/) is the exception.** The script above creates a *public* client; the On-Behalf-Of flow requires a *confidential* client that also exposes its own API. See [its README](python/obo/README.md#app-registration) for the separate setup.
 
 ---
 
