@@ -173,8 +173,10 @@ async def chat_stream(
                     conversation_id, request.message, time_zone=request.time_zone
                 ):
                     yield f"data: {json.dumps({'text': delta})}\n\n"
+            yield "event: done\ndata: \n\n"
         except WorkIQError as exc:
-            # The response has already started, so the error rides the stream.
+            # The HTTP 200 is already committed, so the error rides the stream.
+            # Clients must handle "error" events to detect mid-stream failures.
             logger.error("work iq stream failed: %s", exc)
             yield "event: error\ndata: Work IQ request failed\n\n"
 

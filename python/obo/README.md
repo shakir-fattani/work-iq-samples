@@ -130,9 +130,11 @@ no network.
 | Endpoint | Mode | Response |
 |----------|------|----------|
 | `POST /api/chat` | Synchronous | JSON — `conversation_id`, `text`, `citations` |
-| `POST /api/chat/stream` | SSE | `event: conversation` then `data: {"text": "<delta>"}` frames |
+| `POST /api/chat/stream` | SSE | `event: conversation`, `data: {"text": "<delta>"}` frames, `event: done` on success, `event: error` on failure |
 
-Request body for both: `{"message": "...", "conversation_id": "..."}` (`conversation_id` optional).
+Request body for both: `{"message": "...", "conversation_id": "...", "time_zone": "..."}` (`conversation_id` and `time_zone` optional; `time_zone` is an IANA identifier like `America/New_York`).
+
+**Streaming contract:** once the HTTP 200 is committed, errors cannot change the status code. Clients **must** listen for `event: error` frames to detect mid-stream failures. A `event: done` frame signals clean completion; its absence (with no `error`) indicates a dropped connection.
 
 ## Layout
 
