@@ -20,7 +20,7 @@ SSE_DATA_PREFIX = "data: "
 
 
 class WorkIQError(Exception):
-    """Work IQ returned an error or an unparseable response."""
+    """A Work IQ Gateway call failed (transport error, HTTP error, or bad response)."""
 
 
 @dataclass(frozen=True)
