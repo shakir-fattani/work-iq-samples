@@ -151,27 +151,30 @@ class WorkIQClient:
                 self._raise_for_status(response, "chat stream")
 
             previous = ""
-            async for line in response.aiter_lines():
-                if not line.startswith(SSE_DATA_PREFIX):
-                    continue
+            try:
+                async for line in response.aiter_lines():
+                    if not line.startswith(SSE_DATA_PREFIX):
+                        continue
 
-                event = line[len(SSE_DATA_PREFIX) :].strip()
-                if not event:
-                    continue
+                    event = line[len(SSE_DATA_PREFIX) :].strip()
+                    if not event:
+                        continue
 
-                try:
-                    reply = _last_text_message(json.loads(event))
-                except json.JSONDecodeError:
-                    continue  # Skip malformed events rather than kill the stream.
+                    try:
+                        reply = _last_text_message(json.loads(event))
+                    except json.JSONDecodeError:
+                        continue  # Skip malformed events rather than kill the stream.
 
-                if reply is None:
-                    continue
+                    if reply is None:
+                        continue
 
-                text = reply.get("text", "")
-                delta = text[len(previous) :] if text.startswith(previous) else text
-                previous = text
-                if delta:
-                    yield delta
+                    text = reply.get("text", "")
+                    delta = text[len(previous) :] if text.startswith(previous) else text
+                    previous = text
+                    if delta:
+                        yield delta
+            except httpx.HTTPError as exc:
+                raise WorkIQError(f"chat stream interrupted: {exc}") from exc
         finally:
             await response.aclose()
 
