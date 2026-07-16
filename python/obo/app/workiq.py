@@ -166,6 +166,5 @@ class WorkIQClient:
         # request-id is what Microsoft support asks for; keep it out of client replies.
         request_id = response.headers.get("request-id", "unknown")
         raise WorkIQError(
-            f"{action} failed: {response.status_code} "
-            f"(request-id={request_id})"
+            f"{action} failed: {response.status_code} (request-id={request_id})"
         )

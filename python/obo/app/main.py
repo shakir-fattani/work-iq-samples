@@ -76,7 +76,7 @@ def _bearer_token(authorization: Annotated[str | None, Header()] = None) -> str:
             detail="Missing bearer token",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    return parts[1]
+    return parts[1].strip()
 
 
 async def workiq_token(
