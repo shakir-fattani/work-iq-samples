@@ -124,7 +124,7 @@ class WorkIQClient:
         """
         request = self._client.build_request(
             "POST",
-            f"/conversations/{conversation_id}/chatOverStream",
+            f"conversations/{conversation_id}/chatOverStream",
             json=_chat_body(message),
         )
         response = await self._client.send(request, stream=True)
