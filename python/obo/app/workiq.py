@@ -93,21 +93,35 @@ class WorkIQClient:
         await self._client.aclose()
 
     async def create_conversation(self) -> str:
-        response = await self._client.post("conversations", json={})
+        try:
+            response = await self._client.post("conversations", json={})
+        except httpx.HTTPError as exc:
+            raise WorkIQError(f"create conversation failed: {exc}") from exc
         self._raise_for_status(response, "create conversation")
 
-        conversation_id = response.json().get("id")
+        try:
+            conversation_id = response.json().get("id")
+        except ValueError as exc:
+            raise WorkIQError("create conversation: invalid JSON response") from exc
         if not conversation_id:
             raise WorkIQError("no conversation id in response")
         return conversation_id
 
     async def chat(self, conversation_id: str, message: str) -> ChatReply:
-        response = await self._client.post(
-            f"conversations/{conversation_id}/chat", json=_chat_body(message)
-        )
+        try:
+            response = await self._client.post(
+                f"conversations/{conversation_id}/chat", json=_chat_body(message)
+            )
+        except httpx.HTTPError as exc:
+            raise WorkIQError(f"chat failed: {exc}") from exc
         self._raise_for_status(response, "chat")
 
-        reply = _last_text_message(response.json())
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise WorkIQError("chat: invalid JSON response") from exc
+
+        reply = _last_text_message(payload)
         if reply is None:
             raise WorkIQError("no assistant message in response")
 
@@ -127,7 +141,10 @@ class WorkIQClient:
             f"conversations/{conversation_id}/chatOverStream",
             json=_chat_body(message),
         )
-        response = await self._client.send(request, stream=True)
+        try:
+            response = await self._client.send(request, stream=True)
+        except httpx.HTTPError as exc:
+            raise WorkIQError(f"chat stream failed: {exc}") from exc
         try:
             if response.status_code >= 400:
                 await response.aread()
