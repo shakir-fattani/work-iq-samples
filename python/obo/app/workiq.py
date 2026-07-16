@@ -141,11 +141,9 @@ class WorkIQClient:
             f"conversations/{conversation_id}/chatOverStream",
             json=_chat_body(message),
         )
+        response = None
         try:
             response = await self._client.send(request, stream=True)
-        except httpx.HTTPError as exc:
-            raise WorkIQError(f"chat stream failed: {exc}") from exc
-        try:
             if response.status_code >= 400:
                 await response.aread()
                 self._raise_for_status(response, "chat stream")
@@ -175,7 +173,8 @@ class WorkIQClient:
         except httpx.HTTPError as exc:
             raise WorkIQError(f"chat stream failed: {exc}") from exc
         finally:
-            await response.aclose()
+            if response is not None:
+                await response.aclose()
 
     @staticmethod
     def _raise_for_status(response: httpx.Response, action: str) -> None:

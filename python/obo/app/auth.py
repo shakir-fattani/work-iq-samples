@@ -119,4 +119,4 @@ class WorkIQTokenExchange:
 
     async def close(self) -> None:
         if self._mi_credential is not None:
-            self._mi_credential.close()
+            await asyncio.to_thread(self._mi_credential.close)
