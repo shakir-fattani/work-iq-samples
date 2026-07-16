@@ -90,6 +90,30 @@ async def main() -> None:
             assert "request-id=abc-123" in str(exc), exc
             print("403 error path           ->", str(exc)[:60])
 
+    # Transport error path: network failures must surface as WorkIQError.
+    def transport_error_handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("simulated DNS failure")
+
+    async with WorkIQClient("t", BASE, transport=httpx.MockTransport(transport_error_handler)) as c:
+        try:
+            await c.create_conversation()
+            raise AssertionError("expected WorkIQError")
+        except WorkIQError as exc:
+            assert "simulated DNS failure" in str(exc), exc
+            print("transport error (create) ->", str(exc)[:60])
+
+        try:
+            await c.chat("conv-1", "hi")
+            raise AssertionError("expected WorkIQError")
+        except WorkIQError as exc:
+            print("transport error (chat)   ->", str(exc)[:60])
+
+        try:
+            _ = [d async for d in c.chat_stream("conv-1", "hi")]
+            raise AssertionError("expected WorkIQError")
+        except WorkIQError as exc:
+            print("transport error (stream) ->", str(exc)[:60])
+
     # Pure helper
     assert _last_text_message({"messages": []}) is None
     assert _last_text_message({"messages": [{"role": "user"}]}) is None
