@@ -9,6 +9,7 @@ Mirrors the wire contract exercised by dotnet/rest/Program.cs:
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, AsyncIterator
@@ -17,6 +18,7 @@ import httpx
 
 REQUEST_TIMEOUT_SECONDS = 300.0
 SSE_DATA_PREFIX = "data: "
+_CONV_ID_RE = re.compile(r"^[a-zA-Z0-9\-_]{1,128}$")
 
 
 class WorkIQError(Exception):
@@ -37,7 +39,7 @@ class ChatReply:
     citations: tuple[Citation, ...] = field(default=())
 
 
-def _local_timezone() -> str:
+def _detect_server_timezone() -> str:
     """Work IQ requires an IANA timezone (e.g. America/Los_Angeles)."""
     tz = datetime.now().astimezone().tzinfo
     name = getattr(tz, "key", None) or str(tz)
@@ -45,10 +47,14 @@ def _local_timezone() -> str:
     return name if "/" in name or name == "UTC" else "UTC"
 
 
+# Computed once at import — the server timezone cannot change at runtime.
+_SERVER_TIMEZONE: str = _detect_server_timezone()
+
+
 def _chat_body(message: str, time_zone: str | None = None) -> dict[str, Any]:
     return {
         "message": {"text": message},
-        "locationHint": {"timeZone": time_zone or _local_timezone()},
+        "locationHint": {"timeZone": time_zone or _SERVER_TIMEZONE},
     }
 
 
@@ -107,13 +113,19 @@ class WorkIQClient:
             conversation_id = body.get("id") if isinstance(body, dict) else None
         except (ValueError, httpx.DecodingError) as exc:
             raise WorkIQError("create conversation: invalid JSON response") from exc
-        if not isinstance(conversation_id, str) or not conversation_id:
-            raise WorkIQError("no conversation id in response")
+        if not isinstance(conversation_id, str) or not _CONV_ID_RE.fullmatch(conversation_id):
+            raise WorkIQError("no valid conversation id in response")
         return conversation_id
+
+    @staticmethod
+    def _validate_conversation_id(conversation_id: str) -> None:
+        if not _CONV_ID_RE.fullmatch(conversation_id):
+            raise WorkIQError(f"invalid conversation id: {conversation_id!r}")
 
     async def chat(
         self, conversation_id: str, message: str, *, time_zone: str | None = None
     ) -> ChatReply:
+        self._validate_conversation_id(conversation_id)
         try:
             response = await self._client.post(
                 f"conversations/{conversation_id}/chat",
@@ -143,6 +155,7 @@ class WorkIQClient:
         against the previous one. A non-prefix update would re-emit the full text;
         that does not happen under the current append-only contract.
         """
+        self._validate_conversation_id(conversation_id)
         request = self._client.build_request(
             "POST",
             f"conversations/{conversation_id}/chatOverStream",
