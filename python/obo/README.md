@@ -199,7 +199,8 @@ See the [root README](../../README.md#troubleshooting) for the full matrix (Copi
 - **Cache the OBO result.** Each request currently exchanges the token again. Cache on a
   hash of the inbound token, honoring `expires_on`, to save a round trip per turn.
 - **The `request-id` response header** is what Microsoft support asks for.
-  [`app/workiq.py`](app/workiq.py) logs it but keeps it out of client-facing errors.
+  [`app/workiq.py`](app/workiq.py) includes it in the `WorkIQError` exception;
+  [`app/main.py`](app/main.py) logs it when handling errors.
 - **Never log tokens.** Errors here are logged with the user's `oid`, not the assertion.
 
 ## Resources
