@@ -68,7 +68,8 @@ def _last_text_message(payload: Any) -> dict[str, Any] | None:
     """The assistant's reply is the last message carrying a `text` field."""
     if not isinstance(payload, dict):
         return None
-    candidates = [m for m in payload.get("messages", []) if isinstance(m, dict) and "text" in m]
+    messages = payload.get("messages") or []
+    candidates = [m for m in messages if isinstance(m, dict) and "text" in m]
     return candidates[-1] if candidates else None
 
 

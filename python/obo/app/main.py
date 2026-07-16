@@ -114,6 +114,10 @@ async def workiq_token(
         ) from exc
 
 
+def _get_settings(request: Request) -> Settings:
+    return request.app.state.settings
+
+
 def _client(token: str, settings: Settings) -> WorkIQClient:
     return WorkIQClient(access_token=token, base_url=settings.workiq_base)
 
@@ -122,9 +126,8 @@ def _client(token: str, settings: Settings) -> WorkIQClient:
 async def chat(
     request: ChatRequest,
     token: Annotated[str, Depends(workiq_token)],
+    settings: Annotated[Settings, Depends(_get_settings)],
 ) -> ChatResponse:
-    settings: Settings = app.state.settings
-
     try:
         async with _client(token, settings) as client:
             conversation_id = request.conversation_id or await client.create_conversation()
@@ -156,8 +159,8 @@ async def chat(
 async def chat_stream(
     request: ChatRequest,
     token: Annotated[str, Depends(workiq_token)],
+    settings: Annotated[Settings, Depends(_get_settings)],
 ) -> StreamingResponse:
-    settings: Settings = app.state.settings
 
     async def events() -> AsyncIterator[str]:
         try:
