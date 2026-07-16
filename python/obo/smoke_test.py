@@ -118,9 +118,12 @@ async def main() -> None:
         except WorkIQError as exc:
             print("transport error (stream) ->", str(exc)[:60])
 
-    # Pure helper
+    # Pure helper — edge cases including non-dict payloads
     assert _last_text_message({"messages": []}) is None
     assert _last_text_message({"messages": [{"role": "user"}]}) is None
+    assert _last_text_message([1, 2, 3]) is None  # non-dict payload
+    assert _last_text_message(None) is None  # type: ignore[arg-type]
+    assert _last_text_message({"messages": ["not-a-dict"]}) is None
     print("helper edge cases        -> ok")
 
     # Auth gate: no token and malformed token must both 401 before any Work IQ call.
