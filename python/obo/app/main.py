@@ -31,7 +31,7 @@ class ChatRequest(BaseModel):
         default=None, pattern=r"^[a-zA-Z0-9\-_]+$", max_length=128
     )
     time_zone: str | None = Field(
-        default=None, pattern=r"^[A-Za-z_]+/[A-Za-z_/]+$", max_length=64
+        default=None, pattern=r"^[A-Za-z0-9_+\-/]+$", max_length=64
     )
 
 
