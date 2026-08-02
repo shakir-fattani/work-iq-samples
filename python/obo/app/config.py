@@ -95,12 +95,14 @@ def _allowed_hosts() -> frozenset[str]:
 
 
 def _validated_workiq_host(host: str) -> str:
+    # Normalize trailing slashes so "https://host/" matches "https://host".
+    normalized = host.rstrip("/")
     allowed = _allowed_hosts()
-    if host not in allowed:
+    if normalized not in allowed:
         raise ConfigError(
             f"WORKIQ_HOST {host!r} is not in the allowed list: {allowed}"
         )
-    return host
+    return normalized
 
 
 @lru_cache(maxsize=1)

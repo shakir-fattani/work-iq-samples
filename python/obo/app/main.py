@@ -59,6 +59,13 @@ class _BodySizeLimitMiddleware:
             # Slow path: count bytes as they arrive (covers chunked encoding).
             seen = 0
             rejected = False
+            response_started = False
+
+            async def send_wrapper(message: dict) -> None:  # type: ignore[type-arg]
+                nonlocal response_started
+                if message["type"] == "http.response.start":
+                    response_started = True
+                await send(message)
 
             async def limited_receive() -> dict:  # type: ignore[type-arg]
                 nonlocal seen, rejected
@@ -69,13 +76,18 @@ class _BodySizeLimitMiddleware:
                     seen += len(message.get("body", b""))
                     if seen > self._max_bytes:
                         rejected = True
-                        # Do NOT send a response here — the inner app may have
-                        # already started its response. Returning http.disconnect
-                        # causes the inner app to abort cleanly.
+                        if not response_started:
+                            # Safe to send a proper 413 — the app hasn't
+                            # started its response yet.
+                            err = JSONResponse(
+                                {"detail": "Request body too large"},
+                                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                            )
+                            await err(scope, receive, send)
                         return {"type": "http.disconnect"}
                 return message
 
-            await self._app(scope, limited_receive, send)
+            await self._app(scope, limited_receive, send_wrapper)
             return
 
         await self._app(scope, receive, send)
