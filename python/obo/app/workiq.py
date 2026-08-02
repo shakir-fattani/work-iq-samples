@@ -9,16 +9,21 @@ Mirrors the wire contract exercised by dotnet/rest/Program.cs:
 from __future__ import annotations
 
 import json
+import logging
 import re
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, AsyncIterator
+from typing import Any, Self
 
 import httpx
 
+logger = logging.getLogger(__name__)
+
 REQUEST_TIMEOUT_SECONDS = 300.0
 SSE_DATA_PREFIX = "data: "
-_CONV_ID_RE = re.compile(r"^[a-zA-Z0-9\-_]{1,128}$")
+CONV_ID_PATTERN = r"^[a-zA-Z0-9\-_]{1,128}$"
+_CONV_ID_RE = re.compile(CONV_ID_PATTERN)
 
 
 class WorkIQError(Exception):
@@ -44,7 +49,14 @@ def _detect_server_timezone() -> str:
     tz = datetime.now().astimezone().tzinfo
     name = getattr(tz, "key", None) or str(tz)
     # A bare UTC offset like "+05:30" is not an IANA id; fall back rather than 400.
-    return name if "/" in name or name == "UTC" else "UTC"
+    if "/" in name or name == "UTC":
+        return name
+    logger.warning(
+        "Could not detect IANA timezone (got %r); defaulting to UTC. "
+        "Pass time_zone in requests to override.",
+        name,
+    )
+    return "UTC"
 
 
 # Computed once at import — the server timezone cannot change at runtime.
@@ -96,7 +108,7 @@ class WorkIQClient:
             transport=transport,
         )
 
-    async def __aenter__(self) -> "WorkIQClient":
+    async def __aenter__(self) -> Self:
         return self
 
     async def __aexit__(self, *_: Any) -> None:
@@ -127,9 +139,10 @@ class WorkIQClient:
         self, conversation_id: str, message: str, *, time_zone: str | None = None
     ) -> ChatReply:
         self._validate_conversation_id(conversation_id)
+        url = f"conversations/{conversation_id}/chat"
         try:
             response = await self._client.post(
-                f"conversations/{conversation_id}/chat",
+                url,
                 json=_chat_body(message, time_zone),
             )
         except httpx.HTTPError as exc:
@@ -149,7 +162,7 @@ class WorkIQClient:
 
     async def chat_stream(
         self, conversation_id: str, message: str, *, time_zone: str | None = None
-    ) -> AsyncIterator[str]:
+    ) -> AsyncGenerator[str, None]:
         """Yield text deltas as they arrive.
 
         The gateway streams cumulative, append-only text, so each event is diffed
@@ -157,9 +170,10 @@ class WorkIQClient:
         that does not happen under the current append-only contract.
         """
         self._validate_conversation_id(conversation_id)
+        url = f"conversations/{conversation_id}/chatOverStream"
         request = self._client.build_request(
             "POST",
-            f"conversations/{conversation_id}/chatOverStream",
+            url,
             json=_chat_body(message, time_zone),
         )
         response = None

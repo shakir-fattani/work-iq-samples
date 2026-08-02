@@ -15,6 +15,13 @@ from functools import lru_cache
 WORKIQ_DEFAULT_HOST = "https://workiq.svc.cloud.microsoft"
 WORKIQ_PATH = "/rest/beta"
 
+# Allowlist of valid Work IQ Gateway hosts. Expand this set for staging/test
+# environments rather than removing the check — an unrestricted WORKIQ_HOST
+# env var could redirect OBO tokens to an attacker-controlled endpoint.
+_ALLOWED_WORKIQ_HOSTS = frozenset({
+    WORKIQ_DEFAULT_HOST,
+})
+
 # Work IQ resource. WorkIQAgent.Ask is granted by admin consent on the app
 # registration, so `.default` resolves to it without naming the scope here.
 WORKIQ_SCOPE = "api://workiq.svc.cloud.microsoft/.default"
@@ -69,6 +76,14 @@ def _require(name: str) -> str:
     return value
 
 
+def _validated_workiq_host(host: str) -> str:
+    if host not in _ALLOWED_WORKIQ_HOSTS:
+        raise ConfigError(
+            f"WORKIQ_HOST {host!r} is not in the allowed list: {_ALLOWED_WORKIQ_HOSTS}"
+        )
+    return host
+
+
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     secret = os.environ.get("AZURE_CLIENT_SECRET", "").strip()
@@ -77,6 +92,8 @@ def get_settings() -> Settings:
         client_id=_require("AZURE_CLIENT_ID"),
         api_audience=_require("API_AUDIENCE"),
         required_scope=os.environ.get("REQUIRED_SCOPE", "").strip() or DEFAULT_REQUIRED_SCOPE,
-        workiq_host=os.environ.get("WORKIQ_HOST", "").strip() or WORKIQ_DEFAULT_HOST,
+        workiq_host=_validated_workiq_host(
+            os.environ.get("WORKIQ_HOST", "").strip() or WORKIQ_DEFAULT_HOST
+        ),
         client_secret=secret or None,
     )

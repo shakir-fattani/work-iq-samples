@@ -34,7 +34,9 @@ class TokenValidator:
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
-        self._jwks_client = PyJWKClient(settings.jwks_uri, cache_keys=True)
+        self._jwks_client = PyJWKClient(
+            settings.jwks_uri, cache_keys=True, lifespan=3600
+        )
 
     async def validate(self, token: str) -> dict[str, Any]:
         try:
@@ -56,7 +58,11 @@ class TokenValidator:
         return claims
 
     def _require_scope(self, claims: dict[str, Any]) -> None:
-        granted = set(str(claims.get("scp", "")).split())
+        if "scp" not in claims:
+            raise InvalidToken(
+                "app-only tokens are not accepted; a delegated user token is required"
+            )
+        granted = set(str(claims["scp"]).split())
         if self._settings.required_scope not in granted:
             raise InvalidToken(
                 f"token is missing the required scope '{self._settings.required_scope}'"

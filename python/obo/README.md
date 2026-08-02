@@ -129,6 +129,7 @@ no network.
 
 | Endpoint | Mode | Response |
 |----------|------|----------|
+| `GET /healthz` | — | `{"status": "ok"}` (unauthenticated, for liveness probes) |
 | `POST /api/chat` | Synchronous | JSON — `conversation_id`, `text`, `citations` |
 | `POST /api/chat/stream` | SSE | See streaming contract below |
 

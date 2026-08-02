@@ -8,27 +8,64 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Annotated, AsyncIterator
 
 from azure.core.exceptions import ClientAuthenticationError, HttpResponseError
-from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
-from fastapi.responses import StreamingResponse
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response, status
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from .auth import InvalidToken, TokenValidator, WorkIQTokenExchange
 from .config import Settings, get_settings
-from .workiq import WorkIQClient, WorkIQError
+from .workiq import CONV_ID_PATTERN, WorkIQClient, WorkIQError
 
 logger = logging.getLogger(__name__)
 
 BEARER_SCHEME = "bearer"
+MAX_REQUEST_BODY_BYTES = 64 * 1024  # 64 KB — well above the 8 KB message limit
+
+
+class _BodySizeLimitMiddleware:
+    """Reject requests whose Content-Length exceeds the configured cap."""
+
+    def __init__(self, app: ASGIApp, *, max_bytes: int = MAX_REQUEST_BODY_BYTES) -> None:
+        self._app = app
+        self._max_bytes = max_bytes
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http":
+            headers = dict(scope.get("headers", []))
+            length = headers.get(b"content-length")
+            if length is not None and int(length) > self._max_bytes:
+                response = JSONResponse(
+                    {"detail": "Request body too large"},
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                )
+                await response(scope, receive, send)
+                return
+        await self._app(scope, receive, send)
+
+
+class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Add baseline security headers to every response."""
+
+    async def dispatch(self, request: Request, call_next):  # type: ignore[override]
+        response: Response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        return response
 
 
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=8000)
     conversation_id: str | None = Field(
-        default=None, pattern=r"^[a-zA-Z0-9\-_]+$", max_length=128
+        default=None, pattern=CONV_ID_PATTERN, max_length=128
     )
     time_zone: str | None = Field(
         default=None, pattern=r"^[A-Za-z0-9_+\-/]+$", max_length=64
@@ -66,6 +103,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Work IQ OBO Backend", lifespan=lifespan)
+app.add_middleware(_SecurityHeadersMiddleware)
+app.add_middleware(_BodySizeLimitMiddleware)
+
+
+@app.get("/healthz")
+async def healthz() -> dict[str, str]:
+    return {"status": "ok"}
 
 
 def _bearer_token(authorization: Annotated[str | None, Header()] = None) -> str:
@@ -79,7 +123,7 @@ def _bearer_token(authorization: Annotated[str | None, Header()] = None) -> str:
     if len(parts) != 2 or parts[0].lower() != BEARER_SCHEME:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing bearer token",
+            detail="Authorization header must use Bearer scheme",
             headers={"WWW-Authenticate": "Bearer"},
         )
     return parts[1].strip()
@@ -162,7 +206,7 @@ async def chat_stream(
     settings: Annotated[Settings, Depends(_get_settings)],
 ) -> StreamingResponse:
 
-    async def events() -> AsyncIterator[str]:
+    async def events() -> AsyncGenerator[str, None]:
         try:
             async with _client(token, settings) as client:
                 conversation_id = (
@@ -181,6 +225,6 @@ async def chat_stream(
             # The HTTP 200 is already committed, so the error rides the stream.
             # Clients must handle "error" events to detect mid-stream failures.
             logger.error("work iq stream failed: %s", exc)
-            yield "event: error\ndata: Work IQ request failed\n\n"
+            yield "event: error\ndata: upstream request failed\n\n"
 
     return StreamingResponse(events(), media_type="text/event-stream")

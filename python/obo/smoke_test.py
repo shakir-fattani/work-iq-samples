@@ -19,6 +19,8 @@ import httpx
 from fastapi.testclient import TestClient
 
 from app.config import get_settings
+# _last_text_message is module-private but tested here intentionally to cover
+# edge cases (non-dict payloads, missing/null messages) without a full HTTP round trip.
 from app.workiq import WorkIQClient, WorkIQError, _last_text_message
 
 # Ensure env vars set above are picked up, even if config was imported earlier.
