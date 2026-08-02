@@ -81,8 +81,17 @@ def _allowed_hosts() -> frozenset[str]:
     extra = os.environ.get("EXTRA_WORKIQ_HOSTS", "").strip()
     if not extra:
         return _ALLOWED_WORKIQ_HOSTS
-    additions = frozenset(h.strip() for h in extra.split(",") if h.strip())
-    return _ALLOWED_WORKIQ_HOSTS | additions
+    additions: set[str] = set()
+    for raw in extra.split(","):
+        host = raw.strip()
+        if not host:
+            continue
+        if not host.startswith("https://"):
+            raise ConfigError(
+                f"EXTRA_WORKIQ_HOSTS entry {host!r} must use the https:// scheme"
+            )
+        additions.add(host)
+    return _ALLOWED_WORKIQ_HOSTS | frozenset(additions)
 
 
 def _validated_workiq_host(host: str) -> str:
