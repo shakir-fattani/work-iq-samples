@@ -36,7 +36,7 @@ class Citation:
     attribution_type: str
     attribution_source: str
     provider_display_name: str
-    see_more_web_url: str
+    see_more_web_url: str | None = None
 
 
 @dataclass(frozen=True)
@@ -45,23 +45,25 @@ class ChatReply:
     citations: tuple[Citation, ...] = field(default=())
 
 
-def _detect_server_timezone() -> str:
-    """Work IQ requires an IANA timezone (e.g. America/Los_Angeles)."""
+# Defaults to UTC; call init_server_timezone() at startup (after logging is
+# configured) so the fallback warning is actually visible in application logs.
+_SERVER_TIMEZONE: str = "UTC"
+
+
+def init_server_timezone() -> None:
+    """Detect the server's IANA timezone and cache it for request payloads."""
+    global _SERVER_TIMEZONE  # noqa: PLW0603
     tz = datetime.now().astimezone().tzinfo
     name = getattr(tz, "key", None) or str(tz)
     # A bare UTC offset like "+05:30" is not an IANA id; fall back rather than 400.
     if "/" in name or name == "UTC":
-        return name
+        _SERVER_TIMEZONE = name
+        return
     logger.warning(
         "Could not detect IANA timezone (got %r); defaulting to UTC. "
         "Pass time_zone in requests to override.",
         name,
     )
-    return "UTC"
-
-
-# Computed once at import — the server timezone cannot change at runtime.
-_SERVER_TIMEZONE: str = _detect_server_timezone()
 
 
 def _chat_body(message: str, time_zone: str | None = None) -> dict[str, Any]:
@@ -77,7 +79,7 @@ def _parse_citations(message: dict[str, Any]) -> tuple[Citation, ...]:
             attribution_type=a.get("attributionType", ""),
             attribution_source=a.get("attributionSource", ""),
             provider_display_name=a.get("providerDisplayName", ""),
-            see_more_web_url=a.get("seeMoreWebUrl", ""),
+            see_more_web_url=a.get("seeMoreWebUrl"),
         )
         for a in (message.get("attributions") or [])
         if isinstance(a, dict)

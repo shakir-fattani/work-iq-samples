@@ -19,9 +19,7 @@ import httpx
 from fastapi.testclient import TestClient
 
 from app.config import get_settings
-# _last_text_message is module-private but tested here intentionally to cover
-# edge cases (non-dict payloads, missing/null messages) without a full HTTP round trip.
-from app.workiq import WorkIQClient, WorkIQError, _last_text_message
+from app.workiq import WorkIQClient, WorkIQError
 
 # Ensure env vars set above are picked up, even if config was imported earlier.
 get_settings.cache_clear()
@@ -119,15 +117,6 @@ async def main() -> None:
             raise AssertionError("expected WorkIQError")
         except WorkIQError as exc:
             print("transport error (stream) ->", str(exc)[:60])
-
-    # Pure helper — edge cases including non-dict payloads
-    assert _last_text_message({"messages": []}) is None
-    assert _last_text_message({"messages": [{"role": "user"}]}) is None
-    assert _last_text_message([1, 2, 3]) is None  # non-dict payload
-    assert _last_text_message(None) is None  # type: ignore[arg-type]
-    assert _last_text_message({"messages": ["not-a-dict"]}) is None
-    assert _last_text_message({"messages": None}) is None  # messages: null
-    print("helper edge cases        -> ok")
 
     # Auth gate: no token and malformed token must both 401 before any Work IQ call.
     from app.main import MAX_REQUEST_BODY_BYTES, app

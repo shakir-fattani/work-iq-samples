@@ -21,7 +21,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from .auth import InvalidToken, TokenValidator, WorkIQTokenExchange
 from .config import Settings, get_settings
-from .workiq import CONV_ID_PATTERN, WorkIQClient, WorkIQError
+from .workiq import CONV_ID_PATTERN, WorkIQClient, WorkIQError, init_server_timezone
 
 logger = logging.getLogger(__name__)
 
@@ -70,11 +70,9 @@ class _BodySizeLimitMiddleware:
                     seen += len(message.get("body", b""))
                     if seen > self._max_bytes:
                         rejected = True
-                        response = JSONResponse(
-                            {"detail": "Request body too large"},
-                            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                        )
-                        await response(scope, receive, send)
+                        # Do NOT send a response here — the inner app may have
+                        # already started its response. Returning http.disconnect
+                        # causes the inner app to abort cleanly.
                         return {"type": "http.disconnect"}
                 return message
 
@@ -112,7 +110,7 @@ class CitationModel(BaseModel):
     type: str
     source: str
     provider: str
-    url: str
+    url: str | None = None
 
 
 class ChatResponse(BaseModel):
@@ -123,6 +121,7 @@ class ChatResponse(BaseModel):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    init_server_timezone()
     settings = get_settings()
     app.state.settings = settings
     app.state.validator = TokenValidator(settings)
