@@ -1,33 +1,34 @@
-"""Smoke test: fakes the Work IQ gateway with httpx.MockTransport."""
+"""Smoke test: fakes the Work IQ gateway with httpx.MockTransport.
+
+Diagnostic output uses print() deliberately — this is a standalone script,
+not a pytest suite, and structured logging adds no value for manual runs.
+"""
 
 import asyncio
 import json
 import os
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
-os.environ.update(
-    AZURE_TENANT_ID="11111111-1111-1111-1111-111111111111",
-    AZURE_CLIENT_ID="22222222-2222-2222-2222-222222222222",
-    API_AUDIENCE="api://22222222-2222-2222-2222-222222222222",
-    AZURE_CLIENT_SECRET="local-dev-secret",
-)
+# Fake credentials — must be set before any app.* imports so get_settings()
+# picks them up. Scoped via patch.dict so they don't leak into the process
+# environment if this module is ever imported by a test runner.
+_TEST_ENV = {
+    "AZURE_TENANT_ID": "11111111-1111-1111-1111-111111111111",
+    "AZURE_CLIENT_ID": "22222222-2222-2222-2222-222222222222",
+    "API_AUDIENCE": "api://22222222-2222-2222-2222-222222222222",
+    "AZURE_CLIENT_SECRET": "local-dev-secret",
+}
 
 sys.path.insert(0, str(Path(__file__).parent))
-
-import httpx
-from fastapi.testclient import TestClient
-
-from app.config import get_settings
-from app.workiq import WorkIQClient, WorkIQError
-
-# Ensure env vars set above are picked up, even if config was imported earlier.
-get_settings.cache_clear()
 
 BASE = "https://workiq.test/rest/beta/"
 
 
-def handler(request: httpx.Request) -> httpx.Response:
+def handler(request: "httpx.Request") -> "httpx.Response":
+    import httpx
+
     path = request.url.path
     if path.endswith("/conversations"):
         return httpx.Response(200, json={"id": "conv-42"})
@@ -61,11 +62,22 @@ def handler(request: httpx.Request) -> httpx.Response:
     return httpx.Response(500, json={"error": "unexpected path"})
 
 
-def error_handler(request: httpx.Request) -> httpx.Response:
+def error_handler(request: "httpx.Request") -> "httpx.Response":
+    import httpx
+
     return httpx.Response(403, json={"error": "no copilot license"}, headers={"request-id": "abc-123"})
 
 
 async def main() -> None:
+    import httpx
+    from fastapi.testclient import TestClient
+
+    from app.config import get_settings
+    from app.workiq import WorkIQClient, WorkIQError
+
+    # Ensure env vars are picked up by config.
+    get_settings.cache_clear()
+
     transport = httpx.MockTransport(handler)
 
     async with WorkIQClient("fake-token", BASE, transport=transport) as client:
@@ -181,4 +193,5 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    with patch.dict(os.environ, _TEST_ENV):
+        asyncio.run(main())

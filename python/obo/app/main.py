@@ -13,10 +13,9 @@ from contextlib import asynccontextmanager
 from typing import Annotated, AsyncIterator
 
 from azure.core.exceptions import ClientAuthenticationError, HttpResponseError
-from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
-from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from .auth import InvalidToken, TokenValidator, WorkIQTokenExchange
@@ -82,18 +81,37 @@ class _BodySizeLimitMiddleware:
         await self._app(scope, receive, send)
 
 
-class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    """Add baseline security headers to every response."""
+_SECURITY_HEADERS: list[tuple[bytes, bytes]] = [
+    (b"x-content-type-options", b"nosniff"),
+    (b"x-frame-options", b"DENY"),
+    (b"cache-control", b"no-store"),
+    (b"referrer-policy", b"no-referrer"),
+]
 
-    async def dispatch(
-        self, request: Request, call_next: RequestResponseEndpoint
-    ) -> Response:
-        response = await call_next(request)
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["Cache-Control"] = "no-store"
-        response.headers["Referrer-Policy"] = "no-referrer"
-        return response
+
+class _SecurityHeadersMiddleware:
+    """Add baseline security headers to every response.
+
+    Implemented as a raw ASGI middleware (not BaseHTTPMiddleware) to avoid
+    response buffering that would break true streaming on SSE endpoints.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self._app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self._app(scope, receive, send)
+            return
+
+        async def send_with_headers(message: dict) -> None:  # type: ignore[type-arg]
+            if message["type"] == "http.response.start":
+                headers = list(message.get("headers", []))
+                headers.extend(_SECURITY_HEADERS)
+                message = {**message, "headers": headers}
+            await send(message)
+
+        await self._app(scope, receive, send_with_headers)
 
 
 class ChatRequest(BaseModel):
@@ -234,7 +252,21 @@ async def chat(
     )
 
 
-@app.post("/api/chat/stream")
+@app.post(
+    "/api/chat/stream",
+    responses={
+        200: {
+            "description": (
+                "SSE stream. Events in order:\n"
+                "1. `event: conversation` — `data: {\"conversation_id\": \"...\"}`\n"
+                "2. (repeated) default event — `data: {\"text\": \"<delta>\"}`\n"
+                "3. `event: done` — signals clean completion, OR\n"
+                "   `event: error` — `data: upstream request failed`"
+            ),
+            "content": {"text/event-stream": {}},
+        },
+    },
+)
 async def chat_stream(
     request: ChatRequest,
     token: Annotated[str, Depends(workiq_token)],

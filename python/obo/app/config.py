@@ -7,7 +7,7 @@ rather than on the first request.
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 
 # The Work IQ Gateway multiplexes REST/A2A/MCP on one host behind a path prefix
@@ -15,9 +15,9 @@ from functools import lru_cache
 WORKIQ_DEFAULT_HOST = "https://workiq.svc.cloud.microsoft"
 WORKIQ_PATH = "/rest/beta"
 
-# Allowlist of valid Work IQ Gateway hosts. Expand this set for staging/test
-# environments rather than removing the check — an unrestricted WORKIQ_HOST
-# env var could redirect OBO tokens to an attacker-controlled endpoint.
+# Allowlist of valid Work IQ Gateway hosts. For staging/test environments,
+# set EXTRA_WORKIQ_HOSTS (comma-separated HTTPS URLs) rather than removing
+# the check — an unrestricted WORKIQ_HOST could redirect OBO tokens.
 _ALLOWED_WORKIQ_HOSTS = frozenset({
     WORKIQ_DEFAULT_HOST,
 })
@@ -49,7 +49,7 @@ class Settings:
     api_audience: str
     required_scope: str
     workiq_host: str
-    client_secret: str | None
+    client_secret: str | None = field(default=None, repr=False)
 
     @property
     def issuer(self) -> str:
@@ -76,10 +76,20 @@ def _require(name: str) -> str:
     return value
 
 
+def _allowed_hosts() -> frozenset[str]:
+    """Built-in hosts plus any from the EXTRA_WORKIQ_HOSTS env var."""
+    extra = os.environ.get("EXTRA_WORKIQ_HOSTS", "").strip()
+    if not extra:
+        return _ALLOWED_WORKIQ_HOSTS
+    additions = frozenset(h.strip() for h in extra.split(",") if h.strip())
+    return _ALLOWED_WORKIQ_HOSTS | additions
+
+
 def _validated_workiq_host(host: str) -> str:
-    if host not in _ALLOWED_WORKIQ_HOSTS:
+    allowed = _allowed_hosts()
+    if host not in allowed:
         raise ConfigError(
-            f"WORKIQ_HOST {host!r} is not in the allowed list: {_ALLOWED_WORKIQ_HOSTS}"
+            f"WORKIQ_HOST {host!r} is not in the allowed list: {allowed}"
         )
     return host
 
