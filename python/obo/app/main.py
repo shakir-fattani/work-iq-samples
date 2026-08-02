@@ -60,31 +60,37 @@ class _BodySizeLimitMiddleware:
             seen = 0
             rejected = False
             response_started = False
+            error_sent = False
 
             async def send_wrapper(message: dict) -> None:  # type: ignore[type-arg]
                 nonlocal response_started
+                # Once we've sent our own 413, suppress any downstream writes
+                # so the inner app can't corrupt the response.
+                if error_sent:
+                    return
                 if message["type"] == "http.response.start":
                     response_started = True
                 await send(message)
 
             async def limited_receive() -> dict:  # type: ignore[type-arg]
-                nonlocal seen, rejected
+                nonlocal seen, rejected, error_sent
                 if rejected:
-                    return {"type": "http.disconnect"}
+                    # Return a clean end-of-body instead of disconnect so
+                    # FastAPI doesn't raise request-parsing errors.
+                    return {"type": "http.request", "body": b"", "more_body": False}
                 message = await receive()
                 if message.get("type") == "http.request":
                     seen += len(message.get("body", b""))
                     if seen > self._max_bytes:
                         rejected = True
                         if not response_started:
-                            # Safe to send a proper 413 — the app hasn't
-                            # started its response yet.
+                            error_sent = True
                             err = JSONResponse(
                                 {"detail": "Request body too large"},
                                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                             )
                             await err(scope, receive, send)
-                        return {"type": "http.disconnect"}
+                        return {"type": "http.request", "body": b"", "more_body": False}
                 return message
 
             await self._app(scope, limited_receive, send_wrapper)
@@ -168,8 +174,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Work IQ OBO Backend", lifespan=lifespan)
-app.add_middleware(_SecurityHeadersMiddleware)
+# Body-size runs outermost (added last = LIFO), security headers wraps the
+# inner app so 413 rejections also carry the security headers.
 app.add_middleware(_BodySizeLimitMiddleware)
+app.add_middleware(_SecurityHeadersMiddleware)
 
 
 @app.get("/healthz")

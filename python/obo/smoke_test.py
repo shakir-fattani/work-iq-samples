@@ -166,7 +166,7 @@ async def main() -> None:
             content=oversized,
             headers={"Content-Type": "application/json"},
         )
-        assert r.status_code in (413, 500), r.status_code  # 413 or 500 from disconnect
+        assert r.status_code == 413, r.status_code
         print("body size limit (chunked)->", r.status_code)
 
         # -- Auth gate --
