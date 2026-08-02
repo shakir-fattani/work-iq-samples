@@ -47,7 +47,7 @@ class TokenValidator:
                 algorithms=["RS256"],
                 audience=self._settings.api_audience,
                 issuer=self._settings.issuer,
-                options={"require": ["exp", "aud", "iss"]},
+                options={"require": ["exp", "nbf", "aud", "iss"]},
             )
         except jwt.PyJWTError as exc:
             raise InvalidToken(f"token rejected: {type(exc).__name__}") from exc

@@ -14,7 +14,12 @@ import re
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Self
+from typing import Any
+
+try:
+    from typing import Self
+except ImportError:  # Python 3.10
+    from typing_extensions import Self
 
 import httpx
 

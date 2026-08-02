@@ -174,8 +174,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Work IQ OBO Backend", lifespan=lifespan)
-# Body-size runs outermost (added last = LIFO), security headers wraps the
-# inner app so 413 rejections also carry the security headers.
+# Starlette add_middleware is LIFO: last-added is outermost.
+# SecurityHeaders is outermost so 413s from BodySize also carry the headers.
 app.add_middleware(_BodySizeLimitMiddleware)
 app.add_middleware(_SecurityHeadersMiddleware)
 
@@ -307,7 +307,7 @@ async def chat_stream(
                     conversation_id, request.message, time_zone=request.time_zone
                 ):
                     yield f"data: {json.dumps({'text': delta})}\n\n"
-            yield "event: done\ndata: \n\n"
+            yield "event: done\ndata:\n\n"
         except WorkIQError as exc:
             # The HTTP 200 is already committed, so the error rides the stream.
             # Clients must handle "error" events to detect mid-stream failures.

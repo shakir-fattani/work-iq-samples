@@ -137,7 +137,7 @@ no network.
 
 1. `event: conversation` — `data: {"conversation_id": "..."}` (first frame)
 2. `data: {"text": "<delta>"}` — one per text chunk (default event type)
-3. `event: done` — signals clean completion, or `event: error` — `data: Work IQ request failed` on failure
+3. `event: done` — signals clean completion, or `event: error` — `data: upstream request failed` on failure
 
 Request body for both: `{"message": "...", "conversation_id": "...", "time_zone": "..."}` (`conversation_id` and `time_zone` optional; `time_zone` is an IANA identifier like `America/New_York`).
 
