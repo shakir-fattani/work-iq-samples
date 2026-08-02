@@ -33,7 +33,7 @@ ENTRA_AUTHORITY = "https://login.microsoftonline.com"
 
 # Audience used when exchanging a managed identity token for a client assertion
 # (workload identity federation). Only used in the secretless configuration.
-TOKEN_EXCHANGE_SCOPE = "api://AzureADTokenExchange/.default"
+TOKEN_EXCHANGE_SCOPE = "api://AzureADTokenExchange/.default"  # nosec B105 — OAuth scope URI, not a secret
 
 
 class ConfigError(RuntimeError):

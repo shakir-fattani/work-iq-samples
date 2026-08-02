@@ -50,7 +50,7 @@ class TokenValidator:
                 options={"require": ["exp", "aud", "iss"]},
             )
         except jwt.PyJWTError as exc:
-            raise InvalidToken(f"token rejected: {exc}") from exc
+            raise InvalidToken(f"token rejected: {type(exc).__name__}") from exc
 
         self._require_scope(claims)
         return claims

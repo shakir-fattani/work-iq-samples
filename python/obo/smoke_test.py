@@ -157,7 +157,16 @@ async def main() -> None:
             },
         )
         assert r.status_code == 413, r.status_code
-        print("body size limit          ->", r.status_code)
+        print("body size limit (CL)     ->", r.status_code)
+
+        # -- Body size limit without Content-Length (chunked / slow path) --
+        r = tc.post(
+            "/api/chat",
+            content=oversized,
+            headers={"Content-Type": "application/json"},
+        )
+        assert r.status_code in (413, 500), r.status_code  # 413 or 500 from disconnect
+        print("body size limit (chunked)->", r.status_code)
 
         # -- Auth gate --
         r = tc.post("/api/chat", json={"message": "hi"})

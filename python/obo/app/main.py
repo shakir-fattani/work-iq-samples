@@ -45,7 +45,11 @@ class _BodySizeLimitMiddleware:
             # Fast path: reject immediately if Content-Length is declared and oversized.
             headers = dict(scope.get("headers", []))
             length = headers.get(b"content-length")
-            if length is not None and int(length) > self._max_bytes:
+            try:
+                declared = int(length) if length is not None else 0
+            except ValueError:
+                declared = 0  # unparseable; slow path will enforce the limit
+            if declared > self._max_bytes:
                 response = JSONResponse(
                     {"detail": "Request body too large"},
                     status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
@@ -59,6 +63,8 @@ class _BodySizeLimitMiddleware:
 
             async def limited_receive() -> dict:  # type: ignore[type-arg]
                 nonlocal seen, rejected
+                if rejected:
+                    return {"type": "http.disconnect"}
                 message = await receive()
                 if message.get("type") == "http.request":
                     seen += len(message.get("body", b""))
