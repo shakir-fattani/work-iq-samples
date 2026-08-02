@@ -189,6 +189,20 @@ async def main() -> None:
         assert r.status_code == 401, r.status_code
         print("auth precedes validation ->", r.status_code)
 
+    # Config: EXTRA_WORKIQ_HOSTS entries with trailing slashes must match
+    # after _validated_workiq_host normalizes WORKIQ_HOST.
+    from app.config import _allowed_hosts, _validated_workiq_host, get_settings
+
+    get_settings.cache_clear()
+    with patch.dict(os.environ, {**_TEST_ENV, "EXTRA_WORKIQ_HOSTS": "https://workiq.test/"}):
+        get_settings.cache_clear()
+        hosts = _allowed_hosts()
+        assert "https://workiq.test" in hosts, f"trailing slash not normalized: {hosts}"
+        result = _validated_workiq_host("https://workiq.test/")
+        assert result == "https://workiq.test", result
+        print("extra host trailing slash -> ok")
+    get_settings.cache_clear()
+
     print("\nAll checks passed.")
 
 

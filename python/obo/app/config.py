@@ -90,7 +90,7 @@ def _allowed_hosts() -> frozenset[str]:
             raise ConfigError(
                 f"EXTRA_WORKIQ_HOSTS entry {host!r} must use the https:// scheme"
             )
-        additions.add(host)
+        additions.add(host.rstrip("/"))
     return _ALLOWED_WORKIQ_HOSTS | frozenset(additions)
 
 
