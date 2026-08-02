@@ -34,9 +34,7 @@ class TokenValidator:
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
-        self._jwks_client = PyJWKClient(
-            settings.jwks_uri, cache_keys=True, lifespan=3600
-        )
+        self._jwks_client = PyJWKClient(settings.jwks_uri, lifespan=3600)
 
     async def validate(self, token: str) -> dict[str, Any]:
         try:

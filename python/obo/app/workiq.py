@@ -20,7 +20,8 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-REQUEST_TIMEOUT_SECONDS = 300.0
+# Streaming reads can take minutes; connect/write/pool should be tight.
+REQUEST_TIMEOUT = httpx.Timeout(connect=10.0, read=300.0, write=30.0, pool=5.0)
 SSE_DATA_PREFIX = "data: "
 CONV_ID_PATTERN = r"^[a-zA-Z0-9\-_]{1,128}$"
 _CONV_ID_RE = re.compile(CONV_ID_PATTERN)
@@ -104,7 +105,7 @@ class WorkIQClient:
         self._client = httpx.AsyncClient(
             base_url=base_url,
             headers={"Authorization": f"Bearer {access_token}"},
-            timeout=REQUEST_TIMEOUT_SECONDS,
+            timeout=REQUEST_TIMEOUT,
             transport=transport,
         )
 
@@ -205,7 +206,7 @@ class WorkIQClient:
                 previous = text
                 if delta:
                     yield delta
-        except httpx.HTTPError as exc:
+        except (httpx.HTTPError, httpx.StreamError) as exc:
             raise WorkIQError(f"chat stream failed: {exc}") from exc
         finally:
             if response is not None:

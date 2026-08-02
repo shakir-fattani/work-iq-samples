@@ -130,9 +130,36 @@ async def main() -> None:
     print("helper edge cases        -> ok")
 
     # Auth gate: no token and malformed token must both 401 before any Work IQ call.
-    from app.main import app
+    from app.main import MAX_REQUEST_BODY_BYTES, app
 
     with TestClient(app) as tc:
+        # -- /healthz (unauthenticated liveness probe) --
+        r = tc.get("/healthz")
+        assert r.status_code == 200, r.status_code
+        assert r.json() == {"status": "ok"}
+        print("healthz                  ->", r.status_code)
+
+        # -- Security response headers --
+        assert r.headers["x-content-type-options"] == "nosniff"
+        assert r.headers["x-frame-options"] == "DENY"
+        assert r.headers["cache-control"] == "no-store"
+        assert r.headers["referrer-policy"] == "no-referrer"
+        print("security headers         -> ok")
+
+        # -- Body size limit (413) --
+        oversized = b"x" * (MAX_REQUEST_BODY_BYTES + 1)
+        r = tc.post(
+            "/api/chat",
+            content=oversized,
+            headers={
+                "Content-Type": "application/json",
+                "Content-Length": str(len(oversized)),
+            },
+        )
+        assert r.status_code == 413, r.status_code
+        print("body size limit          ->", r.status_code)
+
+        # -- Auth gate --
         r = tc.post("/api/chat", json={"message": "hi"})
         assert r.status_code == 401, r.status_code
         print("no bearer token          ->", r.status_code, r.json()["detail"])

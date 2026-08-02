@@ -16,7 +16,7 @@ from azure.core.exceptions import ClientAuthenticationError, HttpResponseError
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from .auth import InvalidToken, TokenValidator, WorkIQTokenExchange
@@ -30,7 +30,11 @@ MAX_REQUEST_BODY_BYTES = 64 * 1024  # 64 KB — well above the 8 KB message limi
 
 
 class _BodySizeLimitMiddleware:
-    """Reject requests whose Content-Length exceeds the configured cap."""
+    """Reject requests whose body exceeds the configured cap.
+
+    Handles both Content-Length (fast reject) and chunked transfer encoding
+    (streaming byte counter) so the limit cannot be bypassed.
+    """
 
     def __init__(self, app: ASGIApp, *, max_bytes: int = MAX_REQUEST_BODY_BYTES) -> None:
         self._app = app
@@ -38,6 +42,7 @@ class _BodySizeLimitMiddleware:
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] == "http":
+            # Fast path: reject immediately if Content-Length is declared and oversized.
             headers = dict(scope.get("headers", []))
             length = headers.get(b"content-length")
             if length is not None and int(length) > self._max_bytes:
@@ -47,14 +52,39 @@ class _BodySizeLimitMiddleware:
                 )
                 await response(scope, receive, send)
                 return
+
+            # Slow path: count bytes as they arrive (covers chunked encoding).
+            seen = 0
+            rejected = False
+
+            async def limited_receive() -> dict:  # type: ignore[type-arg]
+                nonlocal seen, rejected
+                message = await receive()
+                if message.get("type") == "http.request":
+                    seen += len(message.get("body", b""))
+                    if seen > self._max_bytes:
+                        rejected = True
+                        response = JSONResponse(
+                            {"detail": "Request body too large"},
+                            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        )
+                        await response(scope, receive, send)
+                        return {"type": "http.disconnect"}
+                return message
+
+            await self._app(scope, limited_receive, send)
+            return
+
         await self._app(scope, receive, send)
 
 
 class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Add baseline security headers to every response."""
 
-    async def dispatch(self, request: Request, call_next):  # type: ignore[override]
-        response: Response = await call_next(request)
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
+        response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Cache-Control"] = "no-store"
